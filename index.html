@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer (Email/Password)</title>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            color: #333;
+            transition: background-color 0.5s ease;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 25px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 450px; /* Disesuaikan kembali */
+        }
+
+        h1, h2 {
+            color: #d9534f; /* Merah Pomodoro */
+            margin-bottom: 20px;
+        }
+
+        /* Bagian Login */
+        #login-section, #pomodoro-section {
+            width: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .form-group input[type="email"],
+        .form-group input[type="password"] {
+            width: calc(100% - 22px); /* Padding + border */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .auth-buttons button, .action-button {
+            background-color: #5cb85c; /* Hijau */
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 8px 2px 5px 2px; /* Penyesuaian margin */
+            transition: background-color 0.3s ease;
+            width: calc(50% - 6px); /* Untuk dua tombol per baris */
+        }
+
+        .auth-buttons button:hover, .action-button:hover {
+            opacity: 0.9;
+        }
+        .error-message {
+            color: #d9534f;
+            font-size: 0.9em;
+            margin-top: 10px;
+            min-height: 1.2em;
+        }
+
+        /* Bagian Pomodoro */
+        #user-info {
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            text-align: right;
+        }
+        #user-info p { margin: 0; }
+        #user-info button#logout-btn {
+            background-color: #d9534f;
+            padding: 6px 12px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+
+
+        #timer-display {
+            font-size: 4em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        #controls button, #mode-buttons button {
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s ease;
+        }
+        #controls button:hover, #mode-buttons button:hover {
+            opacity: 0.9;
+        }
+        #controls button#start-timer-btn { background-color: #5cb85c; }
+        #controls button#pause-timer-btn { background-color: #f0ad4e; }
+        #controls button#reset-timer-btn { background-color: #777; }
+        #mode-buttons button { background-color: #5bc0de; }
+        #mode-buttons button.active {
+            background-color: #31b0d5;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        /* Tombol untuk menghentikan suara bel */
+        #stop-sound-btn {
+            background-color: #d9534f; /* Merah */
+            margin-top: 10px;
+        }
+
+
+        #task-input-container { margin-top: 20px; }
+        #task-name {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 20px);
+            margin-bottom: 10px;
+        }
+
+        #history { margin-top: 25px; text-align: left; }
+        #history h2 { font-size: 1.2em; color: #333; margin-bottom: 10px; text-align: center; }
+        #history-list { list-style: none; padding: 0; max-height: 150px; overflow-y: auto; font-size: 0.9em; }
+        #history-list li { background-color: #f9f9f9; padding: 8px; border-bottom: 1px solid #eee; border-radius: 3px; margin-bottom: 5px; }
+        #history-list li:last-child { border-bottom: none; }
+
+        /* Visibilitas Awal */
+        #pomodoro-section { display: none; }
+    </style>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div id="login-section">
+            <h1>Selamat Datang!</h1>
+            <p>Login atau buat akun untuk melacak sesi Pomodoro Anda.</p>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="email@example.com">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Minimal 6 karakter">
+            </div>
+
+            <div class="auth-buttons">
+                <button id="login-btn" class="action-button">Login</button>
+                <button id="signup-btn" class="action-button">Sign Up</button>
+            </div>
+            <p id="auth-error" class="error-message"></p>
+        </div>
+
+        <div id="pomodoro-section">
+            <div id="user-info">
+                </div>
+            <h1>Pomodoro Timer</h1>
+
+            <div id="timer-display">25:00</div>
+
+            <div id="mode-buttons">
+                <button data-mode="pomodoro" class="active">Pomodoro</button>
+                <button data-mode="shortBreak">Istirahat Pendek</button>
+                <button data-mode="longBreak">Istirahat Panjang</button>
+            </div>
+
+            <div id="controls">
+                <button id="start-timer-btn">Mulai</button>
+                <button id="pause-timer-btn" style="display:none;">Jeda</button>
+                <button id="reset-timer-btn">Atur Ulang</button>
+            </div>
+             <button id="stop-sound-btn" style="display:none;">Hentikan Suara</button> <div id="task-input-container">
+                 <input type="text" id="task-name" placeholder="Apa yang sedang Anda kerjakan?">
+            </div>
+
+            <div id="history">
+                <h2>Riwayat Sesi</h2>
+                <ul id="history-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================================
+        // PASTE KONFIGURASI FIREBASE ANDA DI SINI!
+        // =================================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDs-Kx6OpVgNQoaqQTcc2HJqUJWlTlL4IM",
+            authDomain: "pomodoro-36a7d.firebaseapp.com",
+            projectId: "pomodoro-36a7d",
+            storageBucket: "pomodoro-36a7d.firebasestorage.app",
+            messagingSenderId: "970944070250",
+            appId: "1:970944070250:web:81951e32e3e4888a050013"
+        };
+        // =================================================================================
+
+        // Inisialisasi Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- Daftar Email yang Diizinkan ---
+        // Ganti dengan daftar email yang Anda inginkan
+        // Untuk keamanan lebih, daftar ini idealnya tidak di hardcode di sisi klien
+        // dalam aplikasi produksi, tapi untuk contoh ini kita letakkan di sini.
+        const allowedEmails = [
+            "emka.feet@gmail.com"
+            // Tambahkan email lain yang diizinkan di sini
+        ];
+
+
+        // --- Elemen DOM ---
+        // Login Section
+        const loginSection = document.getElementById('login-section');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const signupBtn = document.getElementById('signup-btn');
+        const authErrorElement = document.getElementById('auth-error');
+
+        // Pomodoro Section
+        const pomodoroSection = document.getElementById('pomodoro-section');
+        const userInfoElement = document.getElementById('user-info');
+        const timerDisplay = document.getElementById('timer-display');
+        const startTimerBtn = document.getElementById('start-timer-btn');
+        const pauseTimerBtn = document.getElementById('pause-timer-btn');
+        const resetTimerBtn = document.getElementById('reset-timer-btn');
+        const modeButtonElements = document.querySelectorAll('#mode-buttons button');
+        const taskInput = document.getElementById('task-name');
+        const historyList = document.getElementById('history-list');
+        const stopSoundBtn = document.getElementById('stop-sound-btn');
+
+        // --- State Aplikasi ---
+        let timerInterval;
+        let timeLeft;
+        let currentMode = 'pomodoro';
+        let isPaused = true;
+        let currentUser = null;
+        let currentTaskName = "";
+        let pomodoroCount = 0;
+
+        const modes = {
+            pomodoro: { duration: 25 * 60, name: "Pomodoro" },
+            shortBreak: { duration: 5 * 60, name: "Istirahat Pendek" },
+            longBreak: { duration: 15 * 60, name: "Istirahat Panjang" }
+        };
+        const pomodorosBeforeLongBreak = 4;
+
+        // --- Pengaturan Suara dengan Tone.js ---
+        let bellSound;
+        let soundLoop;
+
+        async function initTone() {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+                console.log("Tone.js context started.");
+            }
+            if (!bellSound) {
+                bellSound = new Tone.Synth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.3, release: 1 }
+                }).toDestination();
+            }
+        }
+
+
+        // --- Fungsi Autentikasi Firebase ---
+        function clearAuthError() {
+            authErrorElement.textContent = '';
+        }
+        function showAuthError(message) {
+            authErrorElement.textContent = message;
+        }
+
+        signupBtn.addEventListener('click', () => {
+            clearAuthError();
+            const email = emailInput.value.trim().toLowerCase(); // Normalisasi email
+            const password = passwordInput.value;
+
+            if (!allowedEmails.includes(email)) {
+                showAuthError("Pendaftaran tidak diizinkan untuk alamat email ini.");
+                return;
+            }
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    console.log("Sign up successful:", userCredential.user);
+                    // onAuthStateChanged akan menangani tampilan UI
+                })
+                .catch(error => {
+                    console.error("Sign up error:", error);
+                    showAuthError(error.message);
+                });
+        });
+
+        loginBtn.addEventListener('click', () => {
+            clearAuthError();
+            const email = emailInput.value.trim().toLowerCase(); // Normalisasi email
+            const password = passwordInput.value;
+
+            // Pemeriksaan email yang diizinkan dilakukan SETELAH login berhasil
+            // agar tidak memberitahu penyerang email mana yang valid.
+            // Namun, jika Anda ingin mencegah percobaan login sama sekali,
+            // Anda bisa memindahkan pemeriksaan ini sebelum signInWithEmailAndPassword.
+            // Untuk contoh ini, kita periksa setelah login.
+
+            auth.signInWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    if (!allowedEmails.includes(userCredential.user.email)) {
+                        // Jika email tidak diizinkan, langsung logout dan tampilkan error
+                        auth.signOut().then(() => {
+                            console.log("User signed out due to unauthorized email.");
+                            showAuthError("Login tidak diizinkan untuk alamat email ini.");
+                        });
+                        return; // Hentikan proses lebih lanjut
+                    }
+                    console.log("Login successful:", userCredential.user);
+                    // onAuthStateChanged akan menangani tampilan UI
+                })
+                .catch(error => {
+                    console.error("Login error:", error);
+                    showAuthError(error.message);
+                });
+        });
+
+
+        function setupUserInfo(user) {
+            userInfoElement.innerHTML = `
+                <p>Login sebagai: ${user.displayName || user.email}</p>
+                <button id="logout-btn">Logout</button>
+            `;
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                auth.signOut().then(() => console.log("User signed out."));
+            });
+        }
+
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                // Tambahan: Periksa lagi di sini jika pengguna yang sudah login (misalnya dari sesi sebelumnya)
+                // masih ada di daftar email yang diizinkan. Ini berguna jika daftar email berubah.
+                if (!allowedEmails.includes(user.email.toLowerCase())) {
+                    auth.signOut().then(() => {
+                        console.log("User from previous session signed out due to unauthorized email.");
+                        showAuthError("Sesi Anda telah berakhir karena email tidak lagi diizinkan.");
+                    });
+                    // Pastikan UI login ditampilkan jika pengguna di-logout di sini
+                    loginSection.style.display = 'block';
+                    pomodoroSection.style.display = 'none';
+                    userInfoElement.innerHTML = '';
+                    historyList.innerHTML = '<li>Login untuk melihat riwayat.</li>';
+                    return;
+                }
+
+                loginSection.style.display = 'none';
+                pomodoroSection.style.display = 'block';
+                setupUserInfo(user);
+                resetTimer();
+                loadHistory();
+            } else {
+                loginSection.style.display = 'block';
+                pomodoroSection.style.display = 'none';
+                userInfoElement.innerHTML = '';
+                historyList.innerHTML = '<li>Login untuk melihat riwayat.</li>';
+            }
+        });
+
+
+        // --- Logika Timer Pomodoro ---
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            const displayString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            timerDisplay.textContent = displayString;
+            document.title = `${displayString} - ${modes[currentMode].name}`;
+        }
+
+        function toggleTimerControls(running) {
+            startTimerBtn.style.display = running ? 'none' : 'inline-block';
+            pauseTimerBtn.style.display = running ? 'inline-block' : 'none';
+        }
+
+        async function startTimer() {
+            await initTone();
+
+            if (currentMode === 'pomodoro' && taskInput.value.trim() === "") {
+                alert("Mohon masukkan nama tugas sebelum memulai Pomodoro!");
+                return;
+            }
+            currentTaskName = taskInput.value.trim();
+
+            isPaused = false;
+            toggleTimerControls(true);
+            stopSoundBtn.style.display = 'none';
+            if (soundLoop) {
+                soundLoop.stop(0);
+                soundLoop.dispose();
+                soundLoop = null;
+            }
+
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimerEnd();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isPaused = true;
+            clearInterval(timerInterval);
+            toggleTimerControls(false);
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timeLeft = modes[currentMode].duration;
+            if (currentMode !== 'pomodoro') {
+                taskInput.value = "";
+            }
+            updateDisplay();
+            toggleTimerControls(false);
+            stopSoundBtn.style.display = 'none';
+            if (soundLoop) {
+                soundLoop.stop(0);
+                soundLoop.dispose();
+                soundLoop = null;
+            }
+        }
+
+        function switchMode(newMode) {
+            currentMode = newMode;
+            modeButtonElements.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === newMode);
+            });
+            resetTimer();
+        }
+
+        function playBellSoundLoop() {
+            if (!bellSound || Tone.context.state !== 'running') {
+                console.warn("Tone.js or bellSound not initialized or context not running.");
+                return;
+            }
+            soundLoop = new Tone.Loop(time => {
+                bellSound.triggerAttackRelease("C5", "8n", time);
+            }, "1.5s").start(0);
+            Tone.Transport.start();
+            stopSoundBtn.style.display = 'inline-block';
+        }
+
+        function stopBellSound() {
+            if (soundLoop) {
+                soundLoop.stop(0);
+                soundLoop.dispose();
+                soundLoop = null;
+            }
+            // Tidak menghentikan Tone.Transport di sini agar tidak mengganggu loop lain jika ada
+            stopSoundBtn.style.display = 'none';
+        }
+
+
+        function handleTimerEnd() {
+            const notificationMessage = `Sesi ${modes[currentMode].name} telah berakhir!`;
+            if (Notification.permission === "granted") {
+                new Notification(notificationMessage);
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") { new Notification(notificationMessage); }
+                });
+            }
+
+            playBellSoundLoop();
+
+            if (currentMode === 'pomodoro' && currentUser && currentTaskName) {
+                saveSessionToFirebase(currentTaskName, modes.pomodoro.duration);
+                pomodoroCount++;
+            } else if (currentMode === 'pomodoro' && currentTaskName) {
+                console.log("Pomodoro selesai (tidak login/tidak ada task):", currentTaskName);
+                pomodoroCount++;
+            }
+        }
+
+        function proceedToNextMode() {
+            if (currentMode === 'pomodoro') {
+                if (pomodoroCount > 0 && pomodoroCount % pomodorosBeforeLongBreak === 0) {
+                    switchMode('longBreak');
+                } else {
+                    switchMode('shortBreak');
+                }
+            } else {
+                switchMode('pomodoro');
+            }
+            startTimer();
+        }
+
+
+        // --- Interaksi Firebase (Firestore) ---
+        async function saveSessionToFirebase(task, durationInSeconds) {
+            if (!currentUser) return;
+            try {
+                await db.collection('users').doc(currentUser.uid).collection('pomodoroSessions').add({
+                    taskName: task,
+                    duration: durationInSeconds,
+                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    modeName: modes[currentMode].name
+                });
+                console.log("Sesi disimpan!");
+                loadHistory();
+            } catch (error) {
+                console.error("Error menyimpan sesi: ", error);
+            }
+        }
+
+        async function loadHistory() {
+            if (!currentUser) {
+                historyList.innerHTML = '<li>Login untuk melihat riwayat.</li>';
+                return;
+            }
+            historyList.innerHTML = '<li>Memuat riwayat...</li>';
+            try {
+                const snapshot = await db.collection('users').doc(currentUser.uid)
+                                        .collection('pomodoroSessions')
+                                        .orderBy('completedAt', 'desc')
+                                        .limit(10)
+                                        .get();
+                if (snapshot.empty) {
+                    historyList.innerHTML = '<li>Belum ada sesi yang tercatat.</li>';
+                    return;
+                }
+                historyList.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const listItem = document.createElement('li');
+                    const date = data.completedAt ? data.completedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " " + data.completedAt.toDate().toLocaleDateString() : 'N/A';
+                    listItem.textContent = `${data.taskName || 'Sesi Pomodoro'} (${Math.floor(data.duration / 60)} mnt) - ${date}`;
+                    historyList.appendChild(listItem);
+                });
+            } catch (error) {
+                console.error("Error memuat riwayat: ", error);
+                historyList.innerHTML = '<li>Error memuat riwayat.</li>';
+            }
+        }
+
+        // --- Event Listeners untuk Timer ---
+        startTimerBtn.addEventListener('click', startTimer);
+        pauseTimerBtn.addEventListener('click', pauseTimer);
+        resetTimerBtn.addEventListener('click', resetTimer);
+        stopSoundBtn.addEventListener('click', () => {
+            stopBellSound();
+            proceedToNextMode();
+        });
+
+
+        modeButtonElements.forEach(button => {
+            button.addEventListener('click', () => {
+                switchMode(button.dataset.mode);
+            });
+        });
+
+        // --- Inisialisasi Awal ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        });
+    </script>
+</body>
+</html>
